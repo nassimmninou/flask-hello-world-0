@@ -9,7 +9,6 @@ from packaging import version
 
 
 OPENAI_API_KEY = os.environ['OPENAI_API_KEY']
-AIRTABLE_API_KEY = os.environ['AIRTABLE_API_KEY']
 
 # Init OpenAI Client
 client = OpenAI(api_key=OPENAI_API_KEY)
@@ -48,55 +47,15 @@ assistant_instructions = """
 """
 
 
-# Add lead to Airtable
-def create_lead(name, phone):
-    url = "https://api.airtable.com/v0/appM1yx0NobvowCAg/Accelerator%20Leads"
-    headers = {
-        "Authorization": AIRTABLE_API_KEY,
-        "Content-Type": "application/json"
-    }
-    data = {"records": [{"fields": {"Name": name, "Phone": phone}}]}
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 200:
-        print("Lead created successfully.")
-        return response.json()
-    else:
-        print(f"Failed to create lead: {response.text}")
 
 
 # Create or load assistant
 def create_assistant(client):
     assistant_file_path = 'assistant.json'
-
-    # If there is an assistant.json file already, then load that assistant
-    if os.path.exists(assistant_file_path):
-        with open(assistant_file_path, 'r') as file:
-            assistant_data = json.load(file)
-            assistant_id = assistant_data['assistant_id']
-            print("Loaded existing assistant ID.")
-    else:
-        # If no assistant.json is present, create a new assistant using the below specifications
-
-        # To change the knowledge document, modify the file name below to match your document
-        # If you want to add multiple files, paste this function into ChatGPT and ask for it to add support for multiple files
-        file = client.files.create(file=open("knowledge.docx", "rb"),
-                                   purpose='assistants')
-
-        assistant = client.beta.assistants.create(
-            # Change prompting in prompts.py file
-            instructions=assistant_instructions,
-            model="gpt-4-1106-preview",
-            tools=[
-
-            ],
-)
-        # Create a new assistant.json file to load on future runs
-        with open(assistant_file_path, 'w') as file:
-            json.dump({'assistant_id': assistant.id}, file)
-            print("Created a new assistant and saved the ID.")
-
-        assistant_id = assistant.id
-
+    with open(assistant_file_path, 'r') as file:
+        assistant_data = json.load(file)
+        assistant_id = assistant_data['assistant_id']
+        print("Loaded existing assistant ID.")
     return assistant_id
 
 required_version = version.parse("1.1.1")
@@ -174,23 +133,8 @@ def check_run_status():
           "response": message_content.value,
           "status": "completed"
       })
-
     if run_status.status == 'requires_action':
       print("Action in progress...")
-      # Handle the function call
-      for tool_call in run_status.required_action.submit_tool_outputs.tool_calls:
-        if tool_call.function.name == "create_lead":
-          # Process lead creation
-          arguments = json.loads(tool_call.function.arguments)
-          output = create_lead(arguments["name"], arguments["phone"])
-          client.beta.threads.runs.submit_tool_outputs(thread_id=thread_id,
-                                                       run_id=run_id,
-                                                       tool_outputs=[{
-                                                           "tool_call_id":
-                                                           tool_call.id,
-                                                           "output":
-                                                           json.dumps(output)
-                                                       }])
     time.sleep(1)
 
   print("Run timed out")
